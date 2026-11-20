@@ -9,7 +9,7 @@
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview",
-    "smoke": "tsx scripts/smoke-xiangqi.ts"
+    "smoke": "tsx scripts/smoke-xiangqi.ts && tsx scripts/smoke-tree.ts"
   },
   "dependencies": {
     "fairy-stockfish-nnue.wasm": "^1.1.12",

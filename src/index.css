@@ -354,6 +354,123 @@ button {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
+.promote-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin-top: 0.65rem;
+  font-size: 0.82rem;
+  opacity: 0.85;
+  cursor: pointer;
+  user-select: none;
+}
+
+.promote-toggle input {
+  accent-color: var(--amber);
+}
+
+.move-tree {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  min-height: 8rem;
+  max-height: min(42vh, 320px);
+  padding: 0.65rem 0.75rem;
+  border: 1px solid rgba(243, 226, 196, 0.22);
+  background: rgba(0, 0, 0, 0.22);
+}
+
+.move-tree-head h2 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.move-tree-hint {
+  margin: 0.2rem 0 0;
+  font-size: 0.72rem;
+  opacity: 0.6;
+}
+
+.move-tree-empty {
+  margin: 0.35rem 0 0;
+}
+
+.move-tree-body {
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding-right: 0.15rem;
+}
+
+.move-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem 0.35rem;
+  font-family: var(--font-piece);
+  font-size: 0.92rem;
+  line-height: 1.55;
+}
+
+.move-num {
+  color: rgba(243, 226, 196, 0.5);
+  min-width: 1.6rem;
+  font-family: var(--font-ui);
+  font-size: 0.78rem;
+}
+
+.move-san {
+  border: none;
+  background: transparent;
+  color: var(--paper);
+  padding: 0.05rem 0.28rem;
+  border-radius: 3px;
+  font: inherit;
+  cursor: pointer;
+}
+
+.move-san:hover {
+  background: rgba(243, 226, 196, 0.12);
+}
+
+.move-san.current {
+  background: rgba(196, 138, 58, 0.45);
+  color: #fff8ea;
+  box-shadow: inset 0 0 0 1px rgba(243, 226, 196, 0.35);
+}
+
+.move-san.placeholder {
+  min-width: 2.5rem;
+  cursor: default;
+}
+
+.variation {
+  display: inline;
+  color: rgba(243, 226, 196, 0.72);
+  font-size: 0.84rem;
+}
+
+.variation-paren {
+  opacity: 0.55;
+  margin: 0 0.1rem;
+}
+
+.variation .move-san {
+  color: rgba(243, 226, 196, 0.82);
+}
+
+.variation .move-san.current {
+  color: #fff8ea;
+}
+
+.variation-ply {
+  display: inline;
+}
+
 @keyframes rise {
   from {
     opacity: 0;

@@ -1,20 +1,26 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Board } from './components/Board'
 import { EvalBar } from './components/EvalBar'
+import { MoveTree } from './components/MoveTree'
 import {
   checkWasmThreadsSupport,
   fairyEngine,
   type EngineEval,
 } from './engine/fairyStockfish'
+import { evaluateInterim } from './engine/interimEval'
+import { parseFen, toFen } from './xiangqi/board'
 import {
-  evaluateInterim,
-} from './engine/interimEval'
-import {
-  applyMove,
-  parseFen,
-  toFen,
-  type Position,
-} from './xiangqi/board'
+  createTree,
+  currentPosition,
+  goBack,
+  goForward,
+  goToNode,
+  lastMoveToCurrent,
+  playMoveOnTree,
+  promoteNode,
+  type GameTree,
+  type NodeId,
+} from './xiangqi/gameTree'
 import {
   allLegalMoves,
   inCheck,
@@ -22,18 +28,21 @@ import {
   isStalemate,
   legalMovesFrom,
 } from './xiangqi/moves'
-import { START_FEN, type Move, type Square } from './xiangqi/types'
+import type { Move, Square } from './xiangqi/types'
 
 export default function App() {
-  const [position, setPosition] = useState<Position>(() => parseFen(START_FEN))
+  const [tree, setTree] = useState<GameTree>(() => createTree())
   const [selected, setSelected] = useState<Square | null>(null)
-  const [lastMove, setLastMove] = useState<Move | null>(null)
   const [evaluation, setEvaluation] = useState<EngineEval | null>(null)
   const [analyzing, setAnalyzing] = useState(false)
   const [engineLabel, setEngineLabel] = useState('starting…')
   const [engineReadyTick, setEngineReadyTick] = useState(0)
-  const [history, setHistory] = useState<Position[]>([])
+  /** When true, a new move from a branched position becomes the mainline. */
+  const [promoteOnPlay, setPromoteOnPlay] = useState(true)
   const evalGen = useRef(0)
+
+  const position = useMemo(() => currentPosition(tree), [tree])
+  const lastMove = useMemo(() => lastMoveToCurrent(tree), [tree])
 
   const legalTargets = useMemo(() => {
     if (!selected) return []
@@ -51,9 +60,10 @@ export default function App() {
     return position.sideToMove === 'red' ? '紅方行棋' : '黑方行棋'
   }, [position])
 
-  const runEval = useCallback(async (pos: Position) => {
+  const runEval = useCallback(async (fen: string) => {
     const gen = ++evalGen.current
     setAnalyzing(true)
+    const pos = parseFen(fen)
 
     const interim: EngineEval = {
       cp: evaluateInterim(pos),
@@ -66,9 +76,7 @@ export default function App() {
     if (fairyEngine.available) {
       try {
         const result = await fairyEngine.analyze(pos, 500)
-        if (gen === evalGen.current) {
-          setEvaluation(result)
-        }
+        if (gen === evalGen.current) setEvaluation(result)
       } catch {
         // keep interim
       }
@@ -96,14 +104,11 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    void runEval(position)
-  }, [position, runEval, engineReadyTick])
+    void runEval(tree.nodes[tree.currentId].fen)
+  }, [tree.currentId, tree.nodes, runEval, engineReadyTick])
 
   const playMove = (move: Move) => {
-    setHistory((h) => [...h, position])
-    const next = applyMove(position, move)
-    setPosition(next)
-    setLastMove(move)
+    setTree((t) => playMoveOnTree(t, move, { promote: promoteOnPlay }))
     setSelected(null)
   }
 
@@ -118,13 +123,7 @@ export default function App() {
         playMove(match)
         return
       }
-      if (
-        piece &&
-        piece.side === position.sideToMove &&
-        (piece !== position.board[selected.rank][selected.file] ||
-          sq.file !== selected.file ||
-          sq.rank !== selected.rank)
-      ) {
+      if (piece && piece.side === position.sideToMove) {
         setSelected(sq)
         return
       }
@@ -138,32 +137,38 @@ export default function App() {
   }
 
   const reset = () => {
-    setPosition(parseFen(START_FEN))
+    setTree(createTree())
     setSelected(null)
-    setLastMove(null)
-    setHistory([])
   }
 
   const undo = () => {
-    setHistory((h) => {
-      if (h.length === 0) return h
-      const prev = h[h.length - 1]
-      setPosition(prev)
-      setSelected(null)
-      setLastMove(null)
-      return h.slice(0, -1)
-    })
+    setTree((t) => goBack(t))
+    setSelected(null)
   }
 
-  // Scaffold hook for future arrows / multi-PV UI
+  const selectNode = (id: NodeId) => {
+    setTree((t) => goToNode(t, id))
+    setSelected(null)
+  }
+
+  const onPromote = (id: NodeId) => {
+    setTree((t) => promoteNode(t, id))
+  }
+
+  const fen = tree.nodes[tree.currentId].fen
+  const canForward = tree.nodes[tree.currentId].childIds.length > 0
+  const canBack = tree.nodes[tree.currentId].parentId != null
+
+  // Scaffold for future arrows / multi-PV
   const analysisHooks = useMemo(
     () => ({
       bestMove: evaluation?.bestMove,
       multipv: evaluation?.multipv ?? [],
       legalMoveCount: allLegalMoves(position).length,
       fen: toFen(position),
+      nodeId: tree.currentId,
     }),
-    [evaluation, position],
+    [evaluation, position, tree.currentId],
   )
 
   return (
@@ -174,7 +179,7 @@ export default function App() {
           <span className="brand-mark">象棋</span>
           <div className="brand-text">
             <h1>Xiangqi Trainer</h1>
-            <p>Play · see the evaluation breathe</p>
+            <p>Play · explore variations · watch the eval</p>
           </div>
         </div>
         <p className="turn" data-side={position.sideToMove}>
@@ -198,16 +203,41 @@ export default function App() {
               <button type="button" onClick={reset}>
                 New game
               </button>
-              <button type="button" onClick={undo} disabled={history.length === 0}>
-                Undo
+              <button type="button" onClick={undo} disabled={!canBack}>
+                Back
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setTree((t) => goForward(t))
+                  setSelected(null)
+                }}
+                disabled={!canForward}
+              >
+                Forward
               </button>
             </div>
+            <label className="promote-toggle">
+              <input
+                type="checkbox"
+                checked={promoteOnPlay}
+                onChange={(e) => setPromoteOnPlay(e.target.checked)}
+              />
+              New moves overwrite mainline
+            </label>
           </div>
+
+          <MoveTree
+            tree={tree}
+            onSelect={selectNode}
+            onPromote={onPromote}
+          />
+
           <div className="side-block">
             <h2>Engine</h2>
             <p className="muted">{engineLabel}</p>
             <p className="fen" title={analysisHooks.fen}>
-              {analysisHooks.fen}
+              {fen}
             </p>
           </div>
         </aside>
