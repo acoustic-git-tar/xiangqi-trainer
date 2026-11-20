@@ -38,7 +38,7 @@ export default function App() {
   const [engineLabel, setEngineLabel] = useState('starting…')
   const [engineReadyTick, setEngineReadyTick] = useState(0)
   /** When true, a new move from a branched position becomes the mainline. */
-  const [promoteOnPlay, setPromoteOnPlay] = useState(true)
+  const [promoteOnPlay, setPromoteOnPlay] = useState(false)
   const evalGen = useRef(0)
 
   const position = useMemo(() => currentPosition(tree), [tree])
@@ -223,7 +223,7 @@ export default function App() {
                 checked={promoteOnPlay}
                 onChange={(e) => setPromoteOnPlay(e.target.checked)}
               />
-              New moves overwrite mainline
+              New lines overwrite mainline
             </label>
           </div>
 
